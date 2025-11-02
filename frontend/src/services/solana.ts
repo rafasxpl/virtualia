@@ -1,4 +1,5 @@
 import { Program, AnchorProvider, web3, BN } from "@coral-xyz/anchor";
+import { Buffer as BufferPolyfill } from "buffer";
 import { Connection, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type {
   ContentType,
@@ -73,7 +74,7 @@ export const initializeUserProfile = async (
     const publicKey = wallet.publicKey;
 
     const [profilePda, bump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("profile"), publicKey.toBuffer()],
+      [BufferPolyfill.from("profile"), publicKey.toBuffer()],
       PROGRAM_ID
     );
 
@@ -127,7 +128,7 @@ export const mintContent = async (
 
     // Get profile account to determine the next content index
     const [profilePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("profile"), publicKey.toBuffer()],
+      [BufferPolyfill.from("profile"), publicKey.toBuffer()],
       PROGRAM_ID
     );
 
@@ -137,9 +138,9 @@ export const mintContent = async (
     // Generate content PDA
     const [contentPda] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from("content"),
+        BufferPolyfill.from("content"),
         publicKey.toBuffer(),
-        new BN(currentTotalMints).toArrayLike(Buffer, "le", 8)
+        new BN(currentTotalMints).toArrayLike(BufferPolyfill, "le", 8)
       ],
       PROGRAM_ID
     );
@@ -190,7 +191,7 @@ export const fetchMintedContent = async (
   const publicKey = wallet.publicKey;
 
   const [profilePda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("profile"), publicKey.toBuffer()],
+   [BufferPolyfill.from("profile"), publicKey.toBuffer()],
     PROGRAM_ID
   );
 
@@ -212,9 +213,9 @@ export const fetchMintedContent = async (
   for (let index = 0; index < totalMints; index += 1) {
     const [contentPda] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from("content"),
+        BufferPolyfill.from("content"),
         publicKey.toBuffer(),
-        new BN(index).toArrayLike(Buffer, "le", 8),
+        new BN(index).toArrayLike(BufferPolyfill, "le", 8)
       ],
       PROGRAM_ID
     );
