@@ -43,15 +43,19 @@ const storageOptions: { value: StorageProtocol; label: string }[] = [
   { value: "arweave", label: "Arweave" },
 ];
 
+const TITLE_MAX_LENGTH = 64;
+const DESCRIPTION_MAX_LENGTH = 240;
+const URI_MAX_LENGTH = 128;
+
 const translations = {
   en: {
     title: "Register a new work",
     description:
       "Upload papers, reviews, certificates, or extension projects to store them on IPFS/Arweave and register their on-chain metadata.",
     titleLabel: "Title",
-    titlePlaceholder: "e.g. Introduction to Quantum Computing",
+    titlePlaceholder: "e.g. Introduction to Quantum Computing (max 64 characters)",
     descriptionLabel: "Description",
-    descriptionPlaceholder: "Describe the content in up to 400 characters",
+    descriptionPlaceholder: "Describe the content in up to 240 characters",
     categoryLabel: "Category",
     yearLabel: "Year of creation",
     yearPlaceholder: "2024",
@@ -81,9 +85,9 @@ const translations = {
     description:
       "Faça o upload de artigos, resenhas, certificados ou projetos de extensão para armazená-los no IPFS/Arweave e registrar a metadata on-chain.",
     titleLabel: "Título",
-    titlePlaceholder: "Ex.: Introdução à Computação Quântica",
+    titlePlaceholder: "Ex.: Introdução à Computação Quântica (máx. 64 caracteres)",
     descriptionLabel: "Descrição",
-    descriptionPlaceholder: "Contextualize o conteúdo em até 400 caracteres",
+    descriptionPlaceholder: "Contextualize o conteúdo em até 240 caracteres",
     categoryLabel: "Categoria",
     yearLabel: "Ano da produção",
     yearPlaceholder: "2024",
@@ -193,15 +197,32 @@ const MintForm = ({ onMinted }: MintFormProps) => {
       return;
     }
 
+    const sanitizedTitle = title.trim();
+    const sanitizedDescription = description.trim();
+    const sanitizedUri = uri.trim();
+
+    if (
+      sanitizedTitle.length > TITLE_MAX_LENGTH ||
+      sanitizedDescription.length > DESCRIPTION_MAX_LENGTH ||
+      sanitizedUri.length > URI_MAX_LENGTH
+    ) {
+      alert(
+        language === "pt"
+          ? "Título, descrição ou URI excedem o limite suportado on-chain (64/240/128 caracteres). Ajuste os campos antes de registrar."
+          : "Title, description, or URI exceed the on-chain limit (64/240/128 characters). Please adjust before minting."
+      );
+      return;
+    }
+
     try {
       setLoading(true);
       const { rewardLamports, mintAddress, metadataSignature } = await mintContent(
         connection,
         wallet,
         {
-          title,
-          description,
-          uri,
+          title: sanitizedTitle,
+          description: sanitizedDescription,
+          uri: sanitizedUri,
           contentType,
           year,
           institution,
@@ -214,9 +235,9 @@ const MintForm = ({ onMinted }: MintFormProps) => {
 
       addItem({
         id: uuid(),
-        title,
-        description,
-        uri,
+        title: sanitizedTitle,
+        description: sanitizedDescription,
+        uri: sanitizedUri,
         contentType,
         reward: rewardLamports / LAMPORTS_PER_SOL,
         ownerAddress: publicKey.toBase58(),
@@ -260,7 +281,21 @@ const MintForm = ({ onMinted }: MintFormProps) => {
 
     uploadToDecentralizedStorage(file, storageProtocol)
       .then((result) => {
-        setUri(result.uri);
+        const normalizedUri = result.uri.trim();
+        if (normalizedUri.length > URI_MAX_LENGTH) {
+          console.error(
+            `Uploaded URI exceeds on-chain limit: received ${normalizedUri.length} characters, max ${URI_MAX_LENGTH}`
+          );
+          setUploadStatus(
+            language === "pt"
+              ? "O link retornado excede o limite de 128 caracteres suportado on-chain. Tente enviar outro arquivo ou use um hash mais curto."
+              : "The returned link exceeds the 128-character on-chain limit. Try another file or use a shorter hash."
+          );
+          setUploadedFileInfo(null);
+          return;
+        }
+
+        setUri(normalizedUri);
         setUploadStatus(t.uploadSuccess(result.protocol.toUpperCase(), result.filename));
         setUploadedFileInfo(result);
       })
@@ -283,6 +318,7 @@ const MintForm = ({ onMinted }: MintFormProps) => {
         <input
           id="title"
           value={title}
+          maxLength={TITLE_MAX_LENGTH}
           onChange={(event) => setTitle(event.target.value)}
           placeholder={t.titlePlaceholder}
           required
@@ -293,6 +329,7 @@ const MintForm = ({ onMinted }: MintFormProps) => {
         <textarea
           id="description"
           value={description}
+          maxLength={DESCRIPTION_MAX_LENGTH}
           onChange={(event) => setDescription(event.target.value)}
           placeholder={t.descriptionPlaceholder}
           rows={4}

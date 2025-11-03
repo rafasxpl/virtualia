@@ -75,11 +75,10 @@ export const uploadToDecentralizedStorage = async (
   }
 
   const payload: { IpfsHash: string } = await response.json();
-  const encodedName = encodeURIComponent(file.name);
 
   return {
-    uri: `https://lime-imperial-whale-6.mypinata.cloud/ipfs/${payload.IpfsHash}`,
+    uri: `ipfs://${payload.IpfsHash}`,
     filename: file.name,
-    protocol: protocol, // Use the actual protocol parameter
+    protocol,
   };
 };
