@@ -1,8 +1,6 @@
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { useMemo, useState } from "react";
 import WalletConnection from "./components/WalletConnection";
 import WalletGate from "./components/WalletGate";
@@ -17,13 +15,7 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 
 const App = () => {
   const endpoint = useMemo(() => clusterApiUrl("devnet"), []);
-  const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter({ network: WalletAdapterNetwork.Devnet }),
-    ],
-    []
-  );
+  const wallets = useMemo(() => [], []);
 
   const [view, setView] = useState<"profile" | "mint">("profile");
   const [globalSearch, setGlobalSearch] = useState("");

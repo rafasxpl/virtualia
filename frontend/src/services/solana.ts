@@ -9,6 +9,12 @@ import type {
 } from "../components/MintedItemsContext";
 import { SOLANA_CONFIG, PROGRAM_ID_VALIDATED } from "../config/solana";
 
+// Ensure Buffer is available (Anchor & Solana SDK rely on the global Buffer in browsers)
+const globalWithBuffer = globalThis as typeof globalThis & { Buffer?: typeof BufferPolyfill };
+if (!globalWithBuffer.Buffer) {
+  globalWithBuffer.Buffer = BufferPolyfill;
+}
+
 // Import the IDL (versioned in frontend for build compatibility)
 import { IDL } from "../idl/virtualia";
 
