@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMintedItems, ContentType } from "./MintedItemsContext";
 import { useLanguage } from "./LanguageContext";
 
@@ -27,6 +27,9 @@ const MintedItemList = ({ searchTerm = "" }: MintedItemListProps) => {
       knowledge: "Knowledge area",
       protocol: "Protocol",
       openMedia: "Open media on IPFS ↗",
+      previewLabel: "Preview",
+      previewLoading: "Loading preview…",
+      previewUnavailable: "Preview unavailable for this file type.",
       author: "Author",
       dateFormat: "MM/dd/yyyy",
     },
@@ -44,6 +47,9 @@ const MintedItemList = ({ searchTerm = "" }: MintedItemListProps) => {
       knowledge: "Área do conhecimento",
       protocol: "Protocolo",
       openMedia: "Abrir mídia on-chain ↗",
+      previewLabel: "Pré-visualização",
+      previewLoading: "Carregando pré-visualização…",
+      previewUnavailable: "Pré-visualização indisponível para este tipo de arquivo.",
       author: "Autor",
       dateFormat: "dd/MM/yyyy",
     },
@@ -133,6 +139,18 @@ const MintedItemList = ({ searchTerm = "" }: MintedItemListProps) => {
                     </div>
                     <span className="badge badge--success">+{item.reward.toFixed(4)} SOL</span>
                   </header>
+                  {item.uri && (
+                    <div className="minted-card__preview">
+                      <span className="minted-card__preview-label">{t.previewLabel}</span>
+                      <MediaPreview
+                        uri={item.uri}
+                        title={item.title}
+                        loadingLabel={t.previewLoading}
+                        errorLabel={t.previewUnavailable}
+                        openLabel={t.openMedia}
+                      />
+                    </div>
+                  )}
                   <p>{item.description || t.noDescription}</p>
                   <p className="minted-meta">
                     {t.knowledge}: {item.knowledgeArea} · {item.knowledgeSubarea}
@@ -142,7 +160,7 @@ const MintedItemList = ({ searchTerm = "" }: MintedItemListProps) => {
                   </p>
                   <p className="minted-meta">Tx: {shorten(item.metadataSignature)}</p>
                   <footer>
-                    <a href={item.uri} target="_blank" rel="noreferrer">
+                    <a href={resolveGatewayUrl(item.uri)} target="_blank" rel="noreferrer">
                       {t.openMedia}
                     </a>
                     <span>{format(new Date(item.mintedAt), t.dateFormat, { locale })}</span>
@@ -158,9 +176,179 @@ const MintedItemList = ({ searchTerm = "" }: MintedItemListProps) => {
   );
 };
 
+type MediaDisplayMode = "image" | "video" | "audio" | "iframe" | "link";
+
+const MEDIA_EXTENSION_MAP: Record<string, MediaDisplayMode> = {
+  jpg: "image",
+  jpeg: "image",
+  png: "image",
+  gif: "image",
+  webp: "image",
+  svg: "image",
+  mp4: "video",
+  webm: "video",
+  ogv: "video",
+  mov: "video",
+  mp3: "audio",
+  wav: "audio",
+  ogg: "audio",
+  m4a: "audio",
+  flac: "audio",
+  pdf: "iframe",
+  html: "iframe",
+  htm: "iframe",
+  txt: "iframe",
+  csv: "iframe",
+  json: "iframe",
+  zip: "link",
+  rar: "link",
+  "7z": "link",
+  gz: "link",
+  tar: "link",
+};
+
+const inferDisplayModeFromExtension = (uri: string): MediaDisplayMode => {
+  try {
+    const normalized = uri.split("#")[0]?.split("?")[0] ?? "";
+    const extension = normalized.split(".").pop()?.toLowerCase();
+    if (!extension) return "iframe";
+    return MEDIA_EXTENSION_MAP[extension] ?? "iframe";
+  } catch {
+    return "iframe";
+  }
+};
+
+const inferDisplayModeFromContentType = (contentType: string | null): MediaDisplayMode => {
+  if (!contentType) return "iframe";
+  if (contentType.startsWith("image/")) return "image";
+  if (contentType.startsWith("video/")) return "video";
+  if (contentType.startsWith("audio/")) return "audio";
+  if (
+    contentType === "application/pdf" ||
+    contentType.startsWith("text/") ||
+    contentType.includes("html")
+  ) {
+    return "iframe";
+  }
+  if (
+    contentType.includes("zip") ||
+    contentType.includes("gzip") ||
+    contentType.includes("octet-stream")
+  ) {
+    return "link";
+  }
+  return "iframe";
+};
+
+interface MediaPreviewProps {
+  uri: string;
+  title: string;
+  loadingLabel: string;
+  errorLabel: string;
+  openLabel: string;
+}
+
+const MediaPreview = ({ uri, title, loadingLabel, errorLabel, openLabel }: MediaPreviewProps) => {
+  const resolvedUri = useMemo(() => resolveGatewayUrl(uri), [uri]);
+  const [mode, setMode] = useState<MediaDisplayMode>(() => inferDisplayModeFromExtension(resolvedUri));
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    const detectContentType = async () => {
+      try {
+        const response = await fetch(resolvedUri, { method: "HEAD" });
+        if (cancelled) return;
+        if (!response.ok) {
+          throw new Error(`HEAD request failed with status ${response.status}`);
+        }
+        const contentType = response.headers.get("content-type");
+        setMode(inferDisplayModeFromContentType(contentType));
+        setStatus("ready");
+      } catch (error) {
+        if (cancelled) return;
+        const fallbackMode = inferDisplayModeFromExtension(resolvedUri);
+        setMode(fallbackMode);
+        setStatus(fallbackMode === "link" ? "error" : "ready");
+      }
+    };
+
+    detectContentType();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedUri]);
+
+  if (!resolvedUri) {
+    return null;
+  }
+
+  if (status === "loading") {
+    return <div className="minted-media-preview minted-media-preview--loading">{loadingLabel}</div>;
+  }
+
+  if (status === "error" || mode === "link") {
+    return (
+      <div className="minted-media-preview minted-media-preview--error">
+        <p>{errorLabel}</p>
+        <a href={resolvedUri} target="_blank" rel="noreferrer">
+          {openLabel}
+        </a>
+      </div>
+    );
+  }
+
+  if (mode === "image") {
+    return (
+      <div className="minted-media-preview minted-media-preview--image">
+        <img src={resolvedUri} alt={title} loading="lazy" />
+      </div>
+    );
+  }
+
+  if (mode === "video") {
+    return (
+      <div className="minted-media-preview minted-media-preview--video">
+        <video controls preload="metadata">
+          <source src={resolvedUri} />
+        </video>
+      </div>
+    );
+  }
+
+  if (mode === "audio") {
+    return (
+      <div className="minted-media-preview minted-media-preview--audio">
+        <audio controls preload="metadata" src={resolvedUri} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="minted-media-preview minted-media-preview--iframe">
+      <iframe title={title} src={resolvedUri} loading="lazy" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" />
+    </div>
+  );
+};
+
 const shorten = (value: string) => {
   if (value.length <= 10) return value;
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
+};
+
+const resolveGatewayUrl = (uri: string): string => {
+  if (!uri) {
+    return "";
+  }
+
+  if (uri.startsWith("ipfs://")) {
+    const path = uri.slice("ipfs://".length).replace(/^ipfs\//, "");
+    return `https://gateway.pinata.cloud/ipfs/${path}`;
+  }
+
+  return uri;
 };
 
 export default MintedItemList;
