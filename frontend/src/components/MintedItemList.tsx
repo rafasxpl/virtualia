@@ -26,7 +26,7 @@ const MintedItemList = ({ searchTerm = "" }: MintedItemListProps) => {
       noDescription: "No description provided.",
       knowledge: "Knowledge area",
       protocol: "Protocol",
-      openMedia: "Open on-chain media ↗",
+      openMedia: "Open media on IPFS ↗",
       author: "Author",
       dateFormat: "MM/dd/yyyy",
     },
